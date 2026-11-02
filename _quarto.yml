@@ -1,23 +1,140 @@
-project:
-  type: website
+---
+title: "Websites 2"
+author: "Madison Goin"
+format: html
+---
 
-website:
-  title: "Billboard Graphic"
-  navbar:
-    left:
-      - href: index.qmd
-        text: Home
-      - about.qmd
+# Billboard Music Analysis
 
-format:
-  html:
-    theme:
-      - cosmo
-      - brand
-    css: styles.css
-    toc: true
+This project explores the Billboard Hot 100 dataset from the year 2000. It examines the top five songs around July 1, 2000, and tracks how their chart rankings changed throughout the year.
 
 ```{r}
 #| message: false
-library(tidyverse)
 
+library(tidyverse)
+library(tidyr)
+
+data("billboard", package = "tidyr")
+```
+
+## Preparing the Data
+
+```{r}
+# Calculate week offset
+billboard <- billboard |>
+  mutate(
+    date.entered = as.Date(date.entered),
+    week_offset = as.numeric(
+      difftime(date.entered, as.Date("2000-01-01"), units = "weeks")
+    )
+  )
+
+# Approximate July 1, 2000
+jul_week <- 26
+
+# Find song rankings around July 1
+billboard_jul <- billboard |>
+  filter(date.entered <= as.Date("2000-07-01")) |>
+  mutate(
+    wk_idx = jul_week - week_offset,
+    wk_idx = if_else(wk_idx >= 1 & wk_idx <= 76, wk_idx, NA_real_),
+    jul_rank = NA_real_
+  )
+
+# Extract weekly rankings
+for (i in seq_len(nrow(billboard_jul))) {
+  wk_idx <- billboard_jul$wk_idx[i]
+
+  if (!is.na(wk_idx)) {
+    col_name <- paste0("wk", as.integer(wk_idx))
+    billboard_jul$jul_rank[i] <-
+      as.numeric(billboard_jul[[col_name]][i])
+  }
+}
+
+# Select the top five songs
+top_5_songs <- billboard_jul |>
+  filter(!is.na(jul_rank)) |>
+  arrange(jul_rank) |>
+  slice_head(n = 5) |>
+  pull(track)
+
+# Filter the original dataset
+billboard_filtered <- billboard |>
+  filter(track %in% top_5_songs)
+```
+
+## Billboard Top Five: 2000
+
+```{r}
+# Reshape data for plotting
+top_songs <- billboard_filtered |>
+  select(artist, track, wk1:wk76, week_offset) |>
+  pivot_longer(
+    cols = starts_with("wk"),
+    names_to = "week_num",
+    values_to = "rank"
+  ) |>
+  mutate(
+    week_num = as.numeric(gsub("wk", "", week_num)) + week_offset
+  ) |>
+  filter(
+    week_num >= 0,
+    week_num <= 52,
+    !is.na(rank)
+  ) |>
+  mutate(
+    song_artist = paste0(track, " (", artist, ")")
+  )
+
+# Define month labels
+month_breaks <- seq(0, 48, by = 4)
+
+month_labels <- c(
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan"
+)
+
+# Create the visualization
+ggplot(
+  top_songs,
+  aes(x = week_num, y = rank, color = song_artist)
+) +
+  geom_line(linewidth = 1.2, alpha = 0.8) +
+  geom_point(size = 2) +
+  scale_y_reverse(limits = c(100, 1)) +
+  scale_x_continuous(
+    breaks = month_breaks,
+    labels = month_labels
+  ) +
+  scale_color_manual(
+    values = c(
+      "#FF6B6B", "#4ECDC4", "#45B7D1",
+      "#96CEB4", "#FFEEAD"
+    )
+  ) +
+  labs(
+    title = "Billboard Top 100: Top 5 Songs in July 2000",
+    subtitle = "Tracking ranking changes throughout 2000",
+    x = "Month",
+    y = "Chart Position",
+    color = "Song (Artist)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(
+      size = 16, face = "bold", hjust = 0.5
+    ),
+    plot.subtitle = element_text(
+      size = 12, hjust = 0.5
+    ),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "grey90"),
+    plot.background = element_rect(
+      fill = "#F5F5F5", color = NA
+    )
+  ) +
+  guides(color = guide_legend(nrow = 2))
+```
