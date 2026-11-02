@@ -2,4 +2,9 @@
 title: "About"
 ---
 
-About this site
+## About Me 
+
+I am Madison Goin, **I go to school at New College of Florida** and play *volleyball*.
+
+[Madison's Goin Free Data Science Bootcamp](https://bootcamp.madisongoin.info)
+
